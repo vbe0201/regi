@@ -1,5 +1,10 @@
 # regi
 
+`regi` lets you define simple and safe interfaces to MMIO and CPU registers
+with ease.
+
+<br />
+
 #### License
 
 <sup>
