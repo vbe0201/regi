@@ -21,13 +21,6 @@ pub trait Readable: Permission {}
 /// [`Field`][crate::field::Field].
 pub trait Writable: Permission {}
 
-/// A union of two permissions `P1` and `P2` to determine the new minimum
-/// permission type that is reconcilable with both.
-pub trait PermissionUnion<P1: Permission, P2: Permission> {
-    /// The resulting permission type.
-    type Union: Permission;
-}
-
 /// Permission marker to tag read-only register fields.
 pub struct ReadOnly;
 impl Sealed for ReadOnly {}
@@ -46,15 +39,3 @@ impl Sealed for ReadWrite {}
 impl Permission for ReadWrite {}
 impl Readable for ReadWrite {}
 impl Writable for ReadWrite {}
-
-impl<R: Readable> PermissionUnion<ReadOnly, R> for ReadOnly {
-    type Union = ReadOnly;
-}
-
-impl<W: Writable> PermissionUnion<WriteOnly, W> for WriteOnly {
-    type Union = WriteOnly;
-}
-
-impl<P: Permission> PermissionUnion<ReadWrite, P> for ReadWrite {
-    type Union = P;
-}

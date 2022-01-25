@@ -13,7 +13,7 @@
 
 use core::{marker::PhantomData, ops};
 
-use crate::{perms::*, sealed::Sealed};
+use crate::{perms::Permission, sealed::Sealed};
 
 /// Pinpoints a specific bit field inside a register.
 ///
