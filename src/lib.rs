@@ -16,5 +16,4 @@ pub(crate) mod sealed {
     impl Sealed for u16 {}
     impl Sealed for u32 {}
     impl Sealed for u64 {}
-    impl Sealed for usize {}
 }

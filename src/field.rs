@@ -113,7 +113,6 @@ impl_field_for!(u8);
 impl_field_for!(u16);
 impl_field_for!(u32);
 impl_field_for!(u64);
-impl_field_for!(usize);
 
 // `#[derive(Clone, Copy)]` does not produce the desired generic bounds.
 // See: https://github.com/rust-lang/rust/issues/26925
