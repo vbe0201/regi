@@ -1,8 +1,8 @@
 [package]
-name = "regi"
+name = "regi-impl"
 version = "0.1.0"
 authors = ["Valentin B. <valentin.be@protonmail.com>"]
-description = "Simple and safe access to MMIO and CPU registers"
+description = ""
 homepage = "https://github.com/vbe0201/regi"
 repository = "https://github.com/vbe0201/regi.git"
 keywords = ["embedded", "registers", "mmio", "cpu", "bare-metal"]
@@ -10,11 +10,10 @@ categories = ["embedded", "hardware-support", "no-std"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
-[workspace]
-members = ["impl"]
+[lib]
+proc-macro = true
 
 [dependencies]
-regi-impl = { path = "impl", version = "0.1.0" }
-
-[dev-dependencies]
-static_assertions = "1.0"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "1.0"

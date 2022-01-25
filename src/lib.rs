@@ -4,6 +4,8 @@
 #![feature(arbitrary_self_types, const_fn_trait_bound)]
 #![no_std]
 
+pub use regi_impl::*;
+
 pub mod field;
 
 pub mod mmio;
