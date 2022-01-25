@@ -10,4 +10,5 @@ categories = ["embedded", "hardware-support", "no-std"]
 license = "MIT/Apache-2.0"
 edition = "2021"
 
-[dependencies]
+[dev-dependencies]
+static_assertions = "1.0"

@@ -1,10 +1,12 @@
 //! TODO
 
-#![deny(missing_docs, rustdoc::broken_intra_doc_links, unsafe_code)]
-#![feature(const_fn_trait_bound)]
+#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
+#![feature(arbitrary_self_types, const_fn_trait_bound)]
 #![no_std]
 
 pub mod field;
+
+pub mod mmio;
 
 pub mod perms;
 
