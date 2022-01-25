@@ -11,7 +11,7 @@
 //! Both types can be used with supported unsigned primitive integer types
 //! and permissions provided by [`crate::perms`].
 
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ops};
 
 use crate::{perms::*, sealed::Sealed};
 
@@ -102,8 +102,31 @@ macro_rules! impl_field_for {
 
         /// Lowers a field value into the primitive it wraps.
         impl From<FieldValue<$ty>> for $ty {
+            #[inline]
             fn from(field: FieldValue<$ty>) -> Self {
                 field.value
+            }
+        }
+
+        /// Combine two field values using the `|` operator.
+        impl ops::BitOr<FieldValue<$ty>> for FieldValue<$ty> {
+            type Output = Self;
+
+            #[inline]
+            fn bitor(self, rhs: Self) -> Self::Output {
+                Self {
+                    mask: self.mask | rhs.mask,
+                    value: self.value | rhs.value,
+                }
+            }
+        }
+
+        /// Combine two field values using the `|=` operator.
+        impl ops::BitOrAssign<FieldValue<$ty>> for FieldValue<$ty> {
+            #[inline]
+            fn bitor_assign(&mut self, rhs: Self) {
+                self.mask |= rhs.mask;
+                self.value |= rhs.value;
             }
         }
     };
