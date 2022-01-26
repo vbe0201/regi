@@ -6,6 +6,16 @@
 
 use crate::sealed::Sealed;
 
+/// A marker type that is used to associate bit fields with registers.
+///
+/// This prevents runtime register access with unwanted bit fields that
+/// were not declared along with the register at compile-time.
+pub trait RegisterMarker {}
+
+/// The unit type works for registers which don't actually have bit
+/// fields defined for them.
+impl RegisterMarker for () {}
+
 /// Defines read access to MMIO and CPU registers.
 ///
 /// Users may implement this trait for their own eligible types.

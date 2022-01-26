@@ -13,7 +13,7 @@
 
 use core::{marker::PhantomData, ops};
 
-use crate::{perms::Permission, sealed::Sealed};
+use crate::{perms::Permission, register::RegisterMarker, sealed::Sealed};
 
 /// Pinpoints a specific bit field inside a register.
 ///
@@ -25,11 +25,12 @@ use crate::{perms::Permission, sealed::Sealed};
 /// we statically only provide the APIs a register field is meant to be
 /// interfaced with.
 #[derive(Debug)]
-pub struct Field<I, P> {
+pub struct Field<I, P, R> {
     mask: I,
     shift: usize,
 
     __perm: PhantomData<P>,
+    __reg: PhantomData<R>,
 }
 
 /// A concrete value to be encoded into a register field.
@@ -37,12 +38,14 @@ pub struct Field<I, P> {
 /// Instances of this type should usually be obtained through
 /// [`Field::make_value`].
 #[derive(Clone, Copy, Debug)]
-pub struct FieldValue<I> {
+pub struct FieldValue<I, R> {
     mask: I,
     value: I,
+
+    __reg: PhantomData<R>,
 }
 
-impl<I: Sealed, P> Field<I, P> {
+impl<I: Sealed + Copy, P: Permission, R: RegisterMarker> Field<I, P, R> {
     /// Constructs a new field given its encoding details.
     #[inline]
     pub const fn new(mask: I, shift: usize) -> Self {
@@ -51,13 +54,14 @@ impl<I: Sealed, P> Field<I, P> {
             shift,
 
             __perm: PhantomData,
+            __reg: PhantomData,
         }
     }
 }
 
 macro_rules! impl_field_for {
     ($ty:ty) => {
-        impl<P: Permission> Field<$ty, P> {
+        impl<P: Permission, R: RegisterMarker> Field<$ty, P, R> {
             /// Reads the specified bits of this field out of the given
             /// `value`.
             #[inline]
@@ -78,17 +82,19 @@ macro_rules! impl_field_for {
             /// Constructs a [`FieldValue`] from a concrete value, preserving
             /// the encoding information.
             #[inline]
-            pub const fn make_value(&self, value: $ty) -> FieldValue<$ty> {
-                FieldValue::<$ty>::new(self.mask << self.shift, value)
+            pub const fn make_value(&self, value: $ty) -> FieldValue<$ty, R> {
+                FieldValue::<$ty, R>::new(self.mask << self.shift, value)
             }
         }
 
-        impl FieldValue<$ty> {
+        impl<R: RegisterMarker> FieldValue<$ty, R> {
             #[inline]
             pub(super) const fn new(mask: $ty, value: $ty) -> Self {
                 Self {
                     mask,
                     value: value & mask,
+
+                    __reg: PhantomData,
                 }
             }
 
@@ -101,15 +107,15 @@ macro_rules! impl_field_for {
         }
 
         /// Lowers a field value into the primitive it wraps.
-        impl From<FieldValue<$ty>> for $ty {
+        impl<R: RegisterMarker> From<FieldValue<$ty, R>> for $ty {
             #[inline]
-            fn from(field: FieldValue<$ty>) -> Self {
+            fn from(field: FieldValue<$ty, R>) -> Self {
                 field.value
             }
         }
 
         /// Combine two field values using the `|` operator.
-        impl ops::BitOr<FieldValue<$ty>> for FieldValue<$ty> {
+        impl<R: RegisterMarker> ops::BitOr<FieldValue<$ty, R>> for FieldValue<$ty, R> {
             type Output = Self;
 
             #[inline]
@@ -117,12 +123,14 @@ macro_rules! impl_field_for {
                 Self {
                     mask: self.mask | rhs.mask,
                     value: self.value | rhs.value,
+
+                    __reg: PhantomData,
                 }
             }
         }
 
         /// Combine two field values using the `|=` operator.
-        impl ops::BitOrAssign<FieldValue<$ty>> for FieldValue<$ty> {
+        impl<R: RegisterMarker> ops::BitOrAssign<FieldValue<$ty, R>> for FieldValue<$ty, R> {
             #[inline]
             fn bitor_assign(&mut self, rhs: Self) {
                 self.mask |= rhs.mask;
@@ -140,14 +148,15 @@ impl_field_for!(u64);
 // `#[derive(Clone, Copy)]` does not produce the desired generic bounds.
 // See: https://github.com/rust-lang/rust/issues/26925
 
-impl<I: Sealed + Copy, P> Clone for Field<I, P> {
+impl<I: Sealed + Copy, P, R> Clone for Field<I, P, R> {
     fn clone(&self) -> Self {
         Self {
             mask: self.mask,
             shift: self.shift,
 
             __perm: PhantomData,
+            __reg: PhantomData,
         }
     }
 }
-impl<I: Sealed + Copy, P> Copy for Field<I, P> {}
+impl<I: Sealed + Copy, P, R> Copy for Field<I, P, R> {}
