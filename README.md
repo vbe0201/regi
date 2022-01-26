@@ -1,6 +1,6 @@
 # regi
 
-`regi` lets you define simple and safe interfaces to MMIO and CPU registers
+`regi` lets you define safe interfaces to MMIO and CPU registers
 with ease.
 
 <br />

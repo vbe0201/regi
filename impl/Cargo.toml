@@ -2,7 +2,7 @@
 name = "regi-impl"
 version = "0.1.0"
 authors = ["Valentin B. <valentin.be@protonmail.com>"]
-description = ""
+description = "Implementation details for the regi crate"
 homepage = "https://github.com/vbe0201/regi"
 repository = "https://github.com/vbe0201/regi.git"
 keywords = ["embedded", "registers", "mmio", "cpu", "bare-metal"]

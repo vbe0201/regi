@@ -53,21 +53,35 @@ impl<T: Sealed + Copy, P: Permission> Register<T, P> {
 /// Instances of this type are obtainable from generated APIs based on
 /// register struct definitions. User code should **never** try to
 /// construct its own instances of this type in any possible way.
-pub struct RegisterWindow<T: Sealed, P: Permission>(*mut Register<T, P>);
+pub struct RegisterWindow<'mmio, T: Sealed, P: Permission> {
+    register: *mut Register<T, P>,
+
+    __marker: PhantomData<&'mmio mut ()>,
+}
 
 // SAFETY: We can assume this type was constructed from a valid pointer
 // or the mere existence of any objects would be UB.
-impl<T: Sealed + Copy, P: Permission> RegisterWindow<T, P> {
+impl<'mmio, T: Sealed + Copy, P: Permission> RegisterWindow<'mmio, T, P> {
+    // Not part of the public API. Used by generated code.
+    #[doc(hidden)]
+    pub unsafe fn new(register: *mut Register<T, P>) -> Self {
+        Self {
+            register,
+
+            __marker: PhantomData,
+        }
+    }
+
     // TODO: Work this out and enforce permissions.
 
     ///
-    pub fn get(&self) -> T {
-        unsafe { self.0.get() }
+    pub fn get(&mut self) -> T {
+        unsafe { self.register.get() }
     }
 
     ///
-    pub fn set(&self, value: T) {
-        unsafe { self.0.set(value) }
+    pub fn set(&mut self, value: T) {
+        unsafe { self.register.set(value) }
     }
 }
 
