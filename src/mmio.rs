@@ -8,6 +8,7 @@ use core::marker::PhantomData;
 
 use crate::{
     perms::{self, Permission},
+    register::*,
     sealed::Sealed,
 };
 
@@ -36,10 +37,12 @@ pub struct Register<T: Sealed, P: Permission>(T, PhantomData<P>);
 // SAFETY: `Register` is repr(transparent) and we are therefore
 // permitted to treat a pointer like a pointer to `T` itself.
 impl<T: Sealed + Copy, P: Permission> Register<T, P> {
+    #[inline]
     pub(super) unsafe fn get(self: *mut Self) -> T {
         self.read_volatile().0
     }
 
+    #[inline]
     pub(super) unsafe fn set(self: *mut Self, value: T) {
         self.write_volatile(Register(value, PhantomData));
     }
@@ -71,18 +74,43 @@ impl<'mmio, T: Sealed + Copy, P: Permission> RegisterWindow<'mmio, T, P> {
             __marker: PhantomData,
         }
     }
+}
 
-    // TODO: Work this out and enforce permissions.
+// SAFETY: Register has `Readable` permission.
+unsafe impl<'mmio, T, P> RegisterRead for RegisterWindow<'mmio, T, P>
+where
+    T: Sealed + Copy,
+    P: perms::Readable,
+{
+    type Register = T;
 
-    ///
-    pub fn get(&mut self) -> T {
-        unsafe { self.register.get() }
+    #[inline]
+    unsafe fn get(&mut self) -> Self::Register {
+        self.register.get()
     }
+}
 
-    ///
-    pub fn set(&mut self, value: T) {
-        unsafe { self.register.set(value) }
+// SAFETY: Register has `Writable` permission.
+unsafe impl<'mmio, T, P> RegisterWrite for RegisterWindow<'mmio, T, P>
+where
+    T: Sealed + Copy,
+    P: perms::Writable,
+{
+    type Register = T;
+
+    #[inline]
+    unsafe fn set(&mut self, value: Self::Register) {
+        self.register.set(value)
     }
+}
+
+// SAFETY: Register has both `Readable` and `Writable` permission.
+unsafe impl<'mmio, T, P> RegisterReadWrite for RegisterWindow<'mmio, T, P>
+where
+    T: Sealed + Copy,
+    P: perms::Readable + perms::Writable,
+{
+    type Register = T;
 }
 
 #[cfg(test)]

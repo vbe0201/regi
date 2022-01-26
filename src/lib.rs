@@ -12,6 +12,8 @@ pub mod mmio;
 
 pub mod perms;
 
+pub mod register;
+
 pub(crate) mod sealed {
     pub trait Sealed {}
 
