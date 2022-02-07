@@ -87,6 +87,13 @@ impl<I: Int, R: RegisterMarker> FieldValue<I, R> {
     pub const fn into_inner(self) -> I {
         self.value
     }
+
+    /// Encodes `new` into the wrapped value for the described field and
+    /// returns the resulting updated value.
+    #[inline]
+    pub fn modify(self, new: I) -> I {
+        (new & !self.mask) | self.mask
+    }
 }
 
 macro_rules! impl_field_for {
@@ -146,7 +153,7 @@ macro_rules! impl_field_for {
             /// This does not rely on [`Int`] generics and can therefore
             /// be used in `const fn`s.
             #[inline]
-            pub const fn modify(self, new: $ty) -> $ty {
+            pub const fn const_modify(self, new: $ty) -> $ty {
                 (new & !self.mask) | self.value
             }
         }

@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    field::{Field, FieldValue},
+    field::FieldValue,
     perms::{self, Permission},
     register::*,
     Int,
@@ -100,11 +100,6 @@ where
     unsafe fn get(&mut self) -> Self::Register {
         self.register.get()
     }
-
-    fn read<P2: perms::Readable>(&mut self, field: Field<I, P2, R>) -> I {
-        // SAFETY: The field we're reading is statically validated to be readable.
-        field.read(unsafe { self.get() })
-    }
 }
 
 // SAFETY: Register has `Writable` permission.
@@ -121,16 +116,9 @@ where
     unsafe fn set(&mut self, value: Self::Register) {
         self.register.set(value)
     }
-
-    #[inline]
-    fn write(&mut self, value: FieldValue<Self::Register, Self::Marker>) {
-        // SAFETY: We assume a `FieldValue` can only be obtained for
-        // fields that are actually writable.
-        unsafe { self.set(value.into_inner()) }
-    }
 }
 
-// SAFETY: Register has both `Readable` and `Writable` permission.
+/*// SAFETY: Register has both `Readable` and `Writable` permission.
 unsafe impl<'mmio, I, P, R> RegisterReadWrite for RegisterWindow<'mmio, I, P, R>
 where
     I: Int,
@@ -139,7 +127,12 @@ where
 {
     type Register = I;
     type Marker = R;
-}
+
+    #[inline]
+    fn modify(&mut self, field: FieldValue<Self::Register, Self::Marker>) {
+        unsafe { self.set(field.modify(self.get())) }
+    }
+}*/
 
 #[cfg(test)]
 mod tests {

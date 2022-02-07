@@ -6,8 +6,7 @@
 
 use crate::{
     field::{Field, FieldValue},
-    perms,
-    sealed::Sealed,
+    perms, Int,
 };
 
 /// A marker type that is used to associate bit fields with registers.
@@ -32,7 +31,7 @@ impl RegisterMarker for () {}
 pub unsafe trait RegisterRead {
     /// The primitive integer type that represents the storage unit of
     /// the underlying register.
-    type Register: Sealed + Copy;
+    type Register: Int;
 
     /// The marker type for the associated register.
     ///
@@ -73,10 +72,29 @@ pub unsafe trait RegisterRead {
     /// Unlike [`RegisterRead::get`], this function is considered safe
     /// because the permissions to access an individual field are checked
     /// at compile-time.
+    #[inline]
     fn read<P: perms::Readable>(
         &mut self,
         field: Field<Self::Register, P, Self::Marker>,
-    ) -> Self::Register;
+    ) -> Self::Register {
+        // SAFETY: The field we're reading is statically validated to be readable.
+        field.read(unsafe { self.get() })
+    }
+
+    /// Reads the given field from the register and checks if any bits
+    /// are set in it.
+    ///
+    /// Unlike [`RegisterRead::get`], this function is considered safe
+    /// because the permissions to access an individual field are checked
+    /// at compile-time.
+    #[inline]
+    fn is_set<P: perms::Readable>(
+        &mut self,
+        field: Field<Self::Register, P, Self::Marker>,
+    ) -> bool {
+        // SAFETY: The field we're reading is statically validated to be readable.
+        field.is_set(unsafe { self.get() })
+    }
 }
 
 /// Defines write access to MMIO and CPU registers.
@@ -91,7 +109,7 @@ pub unsafe trait RegisterRead {
 pub unsafe trait RegisterWrite {
     /// The primitive type that represents the storage unit of
     /// the underlying register.
-    type Register: Sealed + Copy;
+    type Register: Int;
 
     /// The marker type for the associated register.
     ///
@@ -124,7 +142,11 @@ pub unsafe trait RegisterWrite {
     /// Unlike [`RegisterWrite::set`], this method is considered safe
     /// because [`FieldValue`]s can only be obtained from writable
     /// [`Field`]s.
-    fn write(&mut self, value: FieldValue<Self::Register, Self::Marker>);
+    fn write(&mut self, value: FieldValue<Self::Register, Self::Marker>) {
+        // SAFETY: We assume a `FieldValue` can only be obtained for
+        // fields that are actually writable.
+        unsafe { self.set(value.into_inner()) }
+    }
 }
 
 /// Defines mutual read and write access for MMIO and CPU registers.
@@ -140,10 +162,28 @@ pub unsafe trait RegisterWrite {
 pub unsafe trait RegisterReadWrite {
     /// The primitive type that represents the storage unit of
     /// the underlying register.
-    type Register: Sealed + Copy;
+    type Register: Int;
 
     /// The marker type for the associated register.
     ///
     /// When in doubt, use `()`.
     type Marker: RegisterMarker;
+
+    /// Overrides one or more fields in the register with the given
+    /// [`FieldValue`], leaving everything else unchanged.
+    fn modify(&mut self, field: FieldValue<Self::Register, Self::Marker>);
+}
+
+/// Provides read-modify-write semantics to eligible types by default.
+unsafe impl<T, I: Int, R: RegisterMarker> RegisterReadWrite for T
+where
+    T: RegisterRead<Register = I, Marker = R> + RegisterWrite<Register = I, Marker = R>,
+{
+    type Register = I;
+    type Marker = R;
+
+    fn modify(&mut self, field: FieldValue<Self::Register, Self::Marker>) {
+        // SAFETY: The implementation enforces read/write permissions.
+        unsafe { self.set(field.modify(self.get())) }
+    }
 }
