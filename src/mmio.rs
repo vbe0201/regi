@@ -7,17 +7,18 @@
 use core::marker::PhantomData;
 
 use crate::{
+    field::{Field, FieldValue},
     perms::{self, Permission},
     register::*,
-    sealed::Sealed,
+    Int,
 };
 
 /// A [`Register`] type that allows read-only access to it.
-pub type ReadOnly<T, R = ()> = Register<T, perms::ReadOnly, R>;
+pub type ReadOnly<I, R = ()> = Register<I, perms::ReadOnly, R>;
 /// A [`Register`] type that allows write-only access to it.
-pub type WriteOnly<T, R = ()> = Register<T, perms::WriteOnly, R>;
+pub type WriteOnly<I, R = ()> = Register<I, perms::WriteOnly, R>;
 /// A [`Register`] type that allows read and write access to it.
-pub type ReadWrite<T, R = ()> = Register<T, perms::ReadWrite, R>;
+pub type ReadWrite<I, R = ()> = Register<I, perms::ReadWrite, R>;
 
 /// Representation of a Memory-Mapped I/O (MMIO) register.
 ///
@@ -32,8 +33,8 @@ pub type ReadWrite<T, R = ()> = Register<T, perms::ReadWrite, R>;
 /// register; users should not expect to obtain instances of this type.
 /// See [`RegisterWindow`] for more information.
 #[repr(transparent)]
-pub struct Register<T: Sealed, P: Permission, R: RegisterMarker> {
-    value: T,
+pub struct Register<I: Int, P: Permission, R: RegisterMarker> {
+    value: I,
 
     __perm: PhantomData<P>,
     __reg: PhantomData<R>,
@@ -41,14 +42,14 @@ pub struct Register<T: Sealed, P: Permission, R: RegisterMarker> {
 
 // SAFETY: `Register` is repr(transparent) and we are therefore
 // permitted to treat a pointer like a pointer to `T` itself.
-impl<T: Sealed + Copy, P: Permission, R: RegisterMarker> Register<T, P, R> {
+impl<I: Int, P: Permission, R: RegisterMarker> Register<I, P, R> {
     #[inline]
-    pub(super) unsafe fn get(self: *mut Self) -> T {
+    pub(super) unsafe fn get(self: *mut Self) -> I {
         self.read_volatile().value
     }
 
     #[inline]
-    pub(super) unsafe fn set(self: *mut Self, value: T) {
+    pub(super) unsafe fn set(self: *mut Self, value: I) {
         self.write_volatile(Register {
             value,
             __perm: PhantomData,
@@ -65,18 +66,18 @@ impl<T: Sealed + Copy, P: Permission, R: RegisterMarker> Register<T, P, R> {
 /// Instances of this type are obtainable from generated APIs based on
 /// register struct definitions. User code should **never** try to
 /// construct its own instances of this type in any possible way.
-pub struct RegisterWindow<'mmio, T: Sealed, P: Permission, R: RegisterMarker> {
-    register: *mut Register<T, P, R>,
+pub struct RegisterWindow<'mmio, I: Int, P: Permission, R: RegisterMarker> {
+    register: *mut Register<I, P, R>,
 
     __marker: PhantomData<&'mmio ()>,
 }
 
 // SAFETY: We can assume this type was constructed from a valid pointer
 // or the mere existence of any objects would be UB.
-impl<'mmio, T: Sealed + Copy, P: Permission, R: RegisterMarker> RegisterWindow<'mmio, T, P, R> {
+impl<'mmio, I: Int, P: Permission, R: RegisterMarker> RegisterWindow<'mmio, I, P, R> {
     // Not part of the public API. Used by generated code.
     #[doc(hidden)]
-    pub unsafe fn new(register: *mut Register<T, P, R>) -> Self {
+    pub unsafe fn new(register: *mut Register<I, P, R>) -> Self {
         Self {
             register,
 
@@ -86,43 +87,58 @@ impl<'mmio, T: Sealed + Copy, P: Permission, R: RegisterMarker> RegisterWindow<'
 }
 
 // SAFETY: Register has `Readable` permission.
-unsafe impl<'mmio, T, P, R> RegisterRead for RegisterWindow<'mmio, T, P, R>
+unsafe impl<'mmio, I, P, R> RegisterRead for RegisterWindow<'mmio, I, P, R>
 where
-    T: Sealed + Copy,
+    I: Int,
     P: perms::Readable,
     R: RegisterMarker,
 {
-    type Register = T;
+    type Register = I;
+    type Marker = R;
 
     #[inline]
     unsafe fn get(&mut self) -> Self::Register {
         self.register.get()
     }
+
+    fn read<P2: perms::Readable>(&mut self, field: Field<I, P2, R>) -> I {
+        // SAFETY: The field we're reading is statically validated to be readable.
+        field.read(unsafe { self.get() })
+    }
 }
 
 // SAFETY: Register has `Writable` permission.
-unsafe impl<'mmio, T, P, R> RegisterWrite for RegisterWindow<'mmio, T, P, R>
+unsafe impl<'mmio, I, P, R> RegisterWrite for RegisterWindow<'mmio, I, P, R>
 where
-    T: Sealed + Copy,
+    I: Int,
     P: perms::Writable,
     R: RegisterMarker,
 {
-    type Register = T;
+    type Register = I;
+    type Marker = R;
 
     #[inline]
     unsafe fn set(&mut self, value: Self::Register) {
         self.register.set(value)
     }
+
+    #[inline]
+    fn write(&mut self, value: FieldValue<Self::Register, Self::Marker>) {
+        // SAFETY: We assume a `FieldValue` can only be obtained for
+        // fields that are actually writable.
+        unsafe { self.set(value.into_inner()) }
+    }
 }
 
 // SAFETY: Register has both `Readable` and `Writable` permission.
-unsafe impl<'mmio, T, P, R> RegisterReadWrite for RegisterWindow<'mmio, T, P, R>
+unsafe impl<'mmio, I, P, R> RegisterReadWrite for RegisterWindow<'mmio, I, P, R>
 where
-    T: Sealed + Copy,
+    I: Int,
     P: perms::Readable + perms::Writable,
     R: RegisterMarker,
 {
-    type Register = T;
+    type Register = I;
+    type Marker = R;
 }
 
 #[cfg(test)]

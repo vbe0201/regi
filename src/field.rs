@@ -13,7 +13,12 @@
 
 use core::{marker::PhantomData, ops};
 
-use crate::{perms::Permission, register::RegisterMarker, sealed::Sealed};
+use crate::{
+    perms::{self, Permission},
+    register::RegisterMarker,
+    sealed::Sealed,
+    Int,
+};
 
 /// Pinpoints a specific bit field inside a register.
 ///
@@ -26,8 +31,8 @@ use crate::{perms::Permission, register::RegisterMarker, sealed::Sealed};
 /// interfaced with.
 #[derive(Debug)]
 pub struct Field<I, P, R> {
-    mask: I,
-    shift: usize,
+    pub(crate) mask: I,
+    pub(crate) shift: usize,
 
     __perm: PhantomData<P>,
     __reg: PhantomData<R>,
@@ -45,7 +50,7 @@ pub struct FieldValue<I, R> {
     __reg: PhantomData<R>,
 }
 
-impl<I: Sealed + Copy, P: Permission, R: RegisterMarker> Field<I, P, R> {
+impl<I: Int, P: Permission, R: RegisterMarker> Field<I, P, R> {
     /// Constructs a new field given its encoding details.
     #[inline]
     pub const fn new(mask: I, shift: usize) -> Self {
@@ -57,6 +62,31 @@ impl<I: Sealed + Copy, P: Permission, R: RegisterMarker> Field<I, P, R> {
             __reg: PhantomData,
         }
     }
+
+    /// Reads the specified bits of this field out of the given
+    /// `value`.
+    #[inline]
+    pub fn read(self, value: I) -> I {
+        (value & (self.mask << self.shift)) >> self.shift
+    }
+
+    /// Checks if the specified bits of this field are set in
+    /// the given `value`.
+    ///
+    /// This returns `true` if *any* of the specified field bits
+    /// are set, `false` otherwise.
+    #[inline]
+    pub fn is_set(self, value: I) -> bool {
+        value & (self.mask << self.shift) != I::ZERO
+    }
+}
+
+impl<I: Int, R: RegisterMarker> FieldValue<I, R> {
+    /// Consumes the [`FieldValue`], returning the integer value it stores.
+    #[inline]
+    pub const fn into_inner(self) -> I {
+        self.value
+    }
 }
 
 macro_rules! impl_field_for {
@@ -64,8 +94,11 @@ macro_rules! impl_field_for {
         impl<P: Permission, R: RegisterMarker> Field<$ty, P, R> {
             /// Reads the specified bits of this field out of the given
             /// `value`.
+            ///
+            /// This does not rely on [`Int`] generics and can therefore
+            /// be used in `const fn`s.
             #[inline]
-            pub const fn read(self, value: $ty) -> $ty {
+            pub const fn const_read(self, value: $ty) -> $ty {
                 (value & (self.mask << self.shift)) >> self.shift
             }
 
@@ -74,15 +107,24 @@ macro_rules! impl_field_for {
             ///
             /// This returns `true` if *any* of the specified field bits are
             /// set, `false` otherwise.
+            ///
+            /// This does not rely on [`Int`] generics and can therefore
+            /// be used in `const fn`s.
             #[inline]
-            pub const fn is_set(self, value: $ty) -> bool {
+            pub const fn const_is_set(self, value: $ty) -> bool {
                 value & (self.mask << self.shift) != 0
             }
 
             /// Constructs a [`FieldValue`] from a concrete value, preserving
             /// the encoding information.
+            ///
+            /// This does not rely on [`Int`] generics and can therefore
+            /// be used in `const fn`s.
             #[inline]
-            pub const fn make_value(&self, value: $ty) -> FieldValue<$ty, R> {
+            pub const fn make_value(&self, value: $ty) -> FieldValue<$ty, R>
+            where
+                P: perms::Writable,
+            {
                 FieldValue::<$ty, R>::new(self.mask << self.shift, value)
             }
         }
@@ -100,6 +142,9 @@ macro_rules! impl_field_for {
 
             /// Encodes `new` into the wrapped value for the described field
             /// and returns the resulting updated value.
+            ///
+            /// This does not rely on [`Int`] generics and can therefore
+            /// be used in `const fn`s.
             #[inline]
             pub const fn modify(self, new: $ty) -> $ty {
                 (new & !self.mask) | self.value
@@ -110,7 +155,7 @@ macro_rules! impl_field_for {
         impl<R: RegisterMarker> From<FieldValue<$ty, R>> for $ty {
             #[inline]
             fn from(field: FieldValue<$ty, R>) -> Self {
-                field.value
+                field.into_inner()
             }
         }
 
@@ -135,6 +180,13 @@ macro_rules! impl_field_for {
             fn bitor_assign(&mut self, rhs: Self) {
                 self.mask |= rhs.mask;
                 self.value |= rhs.value;
+            }
+        }
+
+        /// Direct comparison with the integer value stored in a field.
+        impl<R: RegisterMarker> PartialEq<$ty> for FieldValue<$ty, R> {
+            fn eq(&self, rhs: &$ty) -> bool {
+                self.value == *rhs
             }
         }
     };
