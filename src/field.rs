@@ -67,7 +67,17 @@ impl<I: Int, P: Permission, R: RegisterMarker> Field<I, P, R> {
     /// `value`.
     #[inline]
     pub fn read(self, value: I) -> I {
-        (value & (self.mask << self.shift)) >> self.shift
+        self.select(value) >> self.shift
+    }
+
+    /// Selects the bits of this field in the given `value` and
+    /// zeroes all other bits.
+    /// 
+    /// If the desired behavior is to read out the bits of this
+    /// field in a value, use [`Field::read`] instead.
+    #[inline]
+    pub fn select(self, value: I) -> I {
+        value & (self.mask << self.shift)
     }
 
     /// Checks if the specified bits of this field are set in

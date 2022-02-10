@@ -16,6 +16,38 @@ pub mod perms;
 
 pub mod register;
 
+#[inline(always)]
+const fn is_aligned(value: usize, align: usize) -> bool {
+    assert!(align.is_power_of_two());
+    value & (align - 1) == 0
+}
+
+// Not part of the public API. Used by generated code.
+// SAFETY: The pointer will be non-null and well-aligned.
+#[doc(hidden)]
+#[inline]
+pub const fn register_block_ptr<T, I>(addr: usize) -> *mut T {
+    assert_ne!(addr, 0, "Address to register region must be non-zero!");
+    assert!(
+        is_aligned(addr, core::mem::size_of::<I>()),
+        "Address must be aligned to the size of the first register!"
+    );
+
+    addr as *mut T
+}
+
+// Not part of the public API. Used by generated code.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! make_register_window {
+    ($block:ident.$reg:ident) => {
+        unsafe {
+            let ptr = ::core::ptr::addr_of_mut!((*$block).$reg);
+            $crate::mmio::RegisterWindow::new(ptr)
+        }
+    };
+}
+
 /// Any integral type that can be used as for representation of underlying
 /// storage of registers.
 pub trait Int:
