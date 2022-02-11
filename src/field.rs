@@ -72,7 +72,7 @@ impl<I: Int, P: Permission, R: RegisterMarker> Field<I, P, R> {
 
     /// Selects the bits of this field in the given `value` and
     /// zeroes all other bits.
-    /// 
+    ///
     /// If the desired behavior is to read out the bits of this
     /// field in a value, use [`Field::read`] instead.
     #[inline]

@@ -5,11 +5,14 @@ use syn::{
     Path, Token,
 };
 
+/// Generic input type for every proc macro from this crate.
 pub struct Input<P: Parse> {
     pub krate: Option<Path>,
     pub item: P,
 }
 
+/// A register block structure that defines several [registers][RegisterLayout]
+/// and their mapping offsets in memory.
 pub struct RegisterBlock {
     pub attrs: Vec<syn::Attribute>,
     pub vis: syn::Visibility,
@@ -17,20 +20,35 @@ pub struct RegisterBlock {
     pub registers: Punctuated<RegisterLayout, Token![,]>,
 }
 
+/// The memory layout of a register as part of a [`RegisterBlock`] struct.
+///
+/// This struct encodes information on the [`RegisterDef`] and the relative
+/// offset from a base address where it is mapped in memory.
 pub struct RegisterLayout {
     pub attrs: Vec<syn::Attribute>,
     pub addr: syn::LitInt,
     pub reg: RegisterDef,
 }
 
+impl RegisterLayout {
+    /// Gets the address offset of the register in memory.
+    pub fn address(&self) -> Result<usize> {
+        self.addr.base10_parse()
+    }
+}
+
+/// A register definition with its name, type and several [`BitField`]s.
 pub struct RegisterDef {
+    pub attrs: Vec<syn::Attribute>,
     pub vis: syn::Visibility,
     pub ident: syn::Ident,
     pub ty: syn::Type,
     pub fields: Punctuated<BitField, Token![,]>,
 }
 
+/// An individual bit field definition within a [register][RegisterDef].
 pub struct BitField {
+    pub attrs: Vec<syn::Attribute>,
     pub permission: Permission,
     pub ident: syn::Ident,
     pub range: RegisterRange,
@@ -42,11 +60,73 @@ pub struct FieldOptions {
     pub discriminants: Punctuated<(syn::Ident, syn::Expr), Token![,]>,
 }
 
+/// The bit range of a register field.
 pub enum RegisterRange {
     Lit(syn::LitInt),
     Range(syn::ExprRange),
 }
 
+impl RegisterRange {
+    fn extract_int_from_range(range: &Option<Box<syn::Expr>>) -> Result<Option<usize>> {
+        match range {
+            Some(expr) => match &**expr {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Int(int),
+                    ..
+                }) => int.base10_parse().map(Some),
+                expr => Err(syn::Error::new_spanned(expr, "expected an integer literal")),
+            },
+            None => Ok(None),
+        }
+    }
+
+    /// Attempts to get the starting bit of the range expression.
+    pub fn start(&self) -> Result<usize> {
+        match self {
+            RegisterRange::Lit(lit) => lit.base10_parse(),
+            RegisterRange::Range(range) => {
+                Self::extract_int_from_range(&range.from).map(|i| i.unwrap_or(0))
+            }
+        }
+    }
+
+    /// Attempts to get the bit width of the range expression.
+    ///
+    /// The width includes the starting bit obtained with
+    /// [`RegisterRange::start`].
+    ///
+    /// When the value is none, it means that the range spans the entire
+    /// remaining bit width of the register and should be accordingly
+    /// processed.
+    pub fn end(&self) -> Result<Option<usize>> {
+        match self {
+            RegisterRange::Lit(_) => Ok(Some(1)),
+            RegisterRange::Range(range) => {
+                let start = self.start()?;
+                let end = Self::extract_int_from_range(&range.to)?;
+
+                if let Some(end) = end {
+                    if start < end {
+                        return Err(syn::Error::new_spanned(
+                            &range,
+                            "end of range must not be smaller than start of range",
+                        ));
+                    }
+                }
+
+                Ok(end
+                    .map(|i| {
+                        // Fix the range value by adding `1` when the end is inclusive.
+                        let inclusive_end = matches!(range.limits, syn::RangeLimits::Closed(_));
+                        i + inclusive_end as usize
+                    })
+                    .map(|i| i - start))
+            }
+        }
+    }
+}
+
+/// The permissions levels for register bitfield access.
 pub enum Permission {
     Read,
     Write,
@@ -113,6 +193,7 @@ impl Parse for RegisterLayout {
 
 impl Parse for RegisterDef {
     fn parse(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(syn::Attribute::parse_outer)?;
         let vis = input.parse()?;
         let ident = input.parse()?;
 
@@ -124,6 +205,7 @@ impl Parse for RegisterDef {
         let fields = content.parse_terminated(BitField::parse)?;
 
         Ok(Self {
+            attrs,
             vis,
             ident,
             ty,
@@ -134,6 +216,7 @@ impl Parse for RegisterDef {
 
 impl Parse for BitField {
     fn parse(input: ParseStream) -> Result<Self> {
+        let attrs = input.call(syn::Attribute::parse_outer)?;
         let permission = input.parse()?;
 
         let ident = input.parse()?;
@@ -148,6 +231,7 @@ impl Parse for BitField {
         };
 
         Ok(Self {
+            attrs,
             permission,
             ident,
             range,
