@@ -18,7 +18,7 @@ pub mod register;
 
 #[inline(always)]
 const fn is_aligned(value: usize, align: usize) -> bool {
-    assert!(align.is_power_of_two());
+    debug_assert!(align.is_power_of_two());
     value & (align - 1) == 0
 }
 
@@ -27,7 +27,7 @@ const fn is_aligned(value: usize, align: usize) -> bool {
 #[doc(hidden)]
 #[inline]
 pub const fn register_block_ptr<T, I>(addr: usize) -> *mut T {
-    assert_ne!(addr, 0, "Address to register region must be non-zero!");
+    assert!(addr != 0, "Address to register region must be non-zero!");
     assert!(
         is_aligned(addr, core::mem::size_of::<I>()),
         "Address must be aligned to the size of the first register!"

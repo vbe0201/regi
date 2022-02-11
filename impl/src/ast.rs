@@ -18,6 +18,7 @@ pub struct RegisterBlock {
 }
 
 pub struct RegisterLayout {
+    pub attrs: Vec<syn::Attribute>,
     pub addr: syn::LitInt,
     pub reg: RegisterDef,
 }
@@ -99,10 +100,14 @@ impl Parse for RegisterBlock {
 
 impl Parse for RegisterLayout {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            addr: input.parse()?,
-            reg: input.parse()?,
-        })
+        let attrs = input.call(syn::Attribute::parse_outer)?;
+
+        let addr = input.parse()?;
+        input.parse::<Token![=]>()?;
+        input.parse::<Token![>]>()?;
+        let reg = input.parse()?;
+
+        Ok(Self { attrs, addr, reg })
     }
 }
 

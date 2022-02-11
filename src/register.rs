@@ -184,6 +184,7 @@ where
 
     fn modify(&mut self, field: FieldValue<Self::Register, Self::Marker>) {
         // SAFETY: The implementation enforces read/write permissions.
-        unsafe { self.set(field.modify(self.get())) }
+        let value = unsafe { self.get() };
+        unsafe { self.set(field.modify(value)) }
     }
 }
